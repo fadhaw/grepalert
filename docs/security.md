@@ -9,7 +9,7 @@
 - **Dashboard sign-in**: SSO (OIDC) and/or local accounts, with sessions in signed `HttpOnly`/`SameSite` cookies. Every API call is authorized on the server by role. See [Sign-in, roles and audit log](#sign-in-roles-and-audit-log).
 - **Browser hardening**: a strict Content-Security-Policy that allows only the dashboard's own scripts (no inline scripts), so injected HTML cannot run code. `X-Frame-Options: DENY` and `nosniff` are set, and write requests need an `X-Requested-With` header, which blocks CSRF.
 - **Secrets**: keep webhook URLs and tokens in environment variables (`${VAR}`), not in the rules repository. Audit entries mask webhook URLs.
-- **Dependencies**: three, all widely used (`go-oidc`, `golang.org/x/oauth2`, `golang.org/x/crypto`), plus `yaml.v3`. The web UI is React; its npm packages (React, plus Vite and TypeScript to build it) are only used at build time, and the result is static files embedded in the dashboard binary. `govulncheck ./...` is clean when built with Go 1.27.2 or later (pinned in `go.mod`).
+- **Dependencies**: three, all widely used (`go-oidc`, `golang.org/x/oauth2`, `golang.org/x/crypto`), plus `yaml.v3`. The web UI is React; its npm packages (React, plus Vite and TypeScript to build it) are only used at build time, and the result is static files embedded in the dashboard binary. `govulncheck ./...` is clean when built with Go 1.27.3 or later (pinned in `go.mod`).
 
 
 ## Sign-in, roles and audit log

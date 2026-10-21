@@ -1,7 +1,7 @@
 # Multi-stage build. Pick a binary with --target:
 #   docker build --target agent -t grepalert-agent .
 #   docker build --target dashboard -t grepalert-dashboard .
-ARG GO_VERSION=1.27.2
+ARG GO_VERSION=1.27.3
 
 # The dashboard's web UI, embedded into its binary. It is the same for every
 # platform, so it is built once, on the build machine's own architecture.
