@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync/atomic"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 type notifier struct {
 	sender *alert.Sender
 	events *ring
+	log    *slog.Logger // failures always; deliveries and routing at debug
 
 	// route hands an alert to the dashboard; it returns false when the
 	// dashboard is unreachable. nil for agents without a dashboard.
@@ -31,13 +33,22 @@ type notifier struct {
 	lastDropEvent atomic.Int64 // unix nanos
 }
 
-func newNotifier(queueSize, retries int, events *ring) *notifier {
-	n := &notifier{sender: alert.NewSender(queueSize, retries, "grepalert-agent/"+Version), events: events}
-	n.sender.OnResult = func(a alert.Alert, hook string, err error) {
-		if err != nil {
+func newNotifier(queueSize, retries int, events *ring, log *slog.Logger) *notifier {
+	if log == nil {
+		log = slog.New(slog.DiscardHandler)
+	}
+	n := &notifier{sender: alert.NewSender(queueSize, retries, "grepalert-agent/"+Version), events: events, log: log}
+	n.sender.OnResult = func(a alert.Alert, r alert.Result) {
+		took := r.Took.Round(time.Millisecond)
+		if r.Err != nil {
+			n.log.Warn("webhook delivery failed", "rule", a.Rule, "webhook", r.Hook, "attempts", r.Attempts,
+				"took", took, "err", r.Err)
 			n.events.add(Event{Time: time.Now(), Type: "webhook_error", Rule: a.Rule,
-				Message: fmt.Sprintf("webhook %q: %v", hook, err)})
+				Message: fmt.Sprintf("webhook %q: %v", r.Hook, r.Err)})
+			return
 		}
+		n.log.Debug("webhook delivered", "rule", a.Rule, "webhook", r.Hook, "status", r.Status,
+			"attempts", r.Attempts, "took", took)
 	}
 	return n
 }
@@ -58,6 +69,7 @@ func (n *notifier) enqueue(a Alert, r *rules.CompiledRule) {
 	if n.route != nil {
 		if n.route(a, hooks) {
 			n.routed.Add(1)
+			n.log.Debug("alert handed to the dashboard, which sends it", "rule", a.Rule)
 			return
 		}
 		n.fallbackDeliver(a, hooks)
@@ -72,8 +84,10 @@ func (n *notifier) enqueue(a Alert, r *rules.CompiledRule) {
 func (n *notifier) fallbackDeliver(a Alert, hooks []*alert.Hook) {
 	if n.silenced != nil && n.silenced(a.Rule) {
 		n.silencedCount.Add(1)
+		n.log.Debug("alert not sent: the dashboard is unreachable and the rule is silenced", "rule", a.Rule)
 		return
 	}
+	n.log.Debug("dashboard unreachable, the agent sends the alert itself", "rule", a.Rule)
 	n.fallback.Add(1)
 	a.Via = "agent"
 	a.Text += " [sent by the agent: dashboard unreachable]"
@@ -89,6 +103,7 @@ func (n *notifier) direct(a Alert, hooks []*alert.Hook) {
 		// One event per 10s at most, so a storm does not evict the event log.
 		now := time.Now().UnixNano()
 		if last := n.lastDropEvent.Load(); now-last >= int64(10*time.Second) && n.lastDropEvent.CompareAndSwap(last, now) {
+			n.log.Warn("webhook queue full: alerts are being dropped", "rule", a.Rule, "dropped_total", total)
 			n.events.add(Event{Time: time.Now(), Type: "webhook_error", Rule: a.Rule,
 				Message: fmt.Sprintf("webhook queue full: alerts are being dropped (%d dropped so far)", total)})
 		}

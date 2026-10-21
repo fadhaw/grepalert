@@ -69,6 +69,7 @@ Bad kubeconfig files give a clear error (`TestKubeconfigErrors`).
 | A broken rules file is reported once, the previous rules keep running, and a fixed file is applied. | `TestBrokenRulesFileReportedOnce` |
 | Captured values reach the webhook template. | `TestTemplateUsesCapturedValues` |
 | With `log_level: debug`, every matching line is logged once, as sent, suppressed or excluded; non-matching lines aren't, and at the default level nothing is. | `TestDebugLogsMatches` |
+| Every webhook delivery is logged: a failure always, with the error and the attempts made, a success at debug, with the HTTP status. A full queue is logged once per 10 seconds, not once per dropped alert. | `TestNotifierLogsDeliveries`, `TestNotifierLogsFullQueueOnce` |
 | Suppression windows and the summary after them; absence rules and their recovery alert. | `TestSuppression`, `TestAbsenceRule` |
 | Suppression state never grows past its cap, the event log is a fixed ring, and a reload frees the state of removed rules. | `TestSuppressionKeysAreBounded`, `TestRingIsBounded`, `TestReloadDropsStateOfRemovedRules` |
 | The fast prefilter never skips a line the pattern matches: 200,000 random lines per pattern, plus a fuzz test. | `TestPrefilterNeverRejectsAMatch`, `FuzzPrefilter` |

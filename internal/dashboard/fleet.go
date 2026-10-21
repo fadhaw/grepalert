@@ -147,16 +147,16 @@ func (f *fleet) recordLocked(e *HistoryEntry) {
 	f.next = (f.next + 1) % len(f.history)
 }
 
-func (f *fleet) recordResult(a alert.Alert, hook string, err error) {
+func (f *fleet) recordResult(a alert.Alert, r alert.Result) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	for _, e := range f.history {
 		if e == nil || e.ID != a.ID {
 			continue
 		}
-		if err != nil {
+		if r.Err != nil {
 			e.Status = "failed"
-			e.Detail = strings.TrimSpace(e.Detail + fmt.Sprintf(" %s: %v", hook, err))
+			e.Detail = strings.TrimSpace(e.Detail + fmt.Sprintf(" %s: %v", r.Hook, r.Err))
 		}
 		return
 	}

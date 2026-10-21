@@ -85,7 +85,7 @@ func New(cfg Config, log *slog.Logger) *Agent {
 		dryRuns: make(chan struct{}, 1),
 	}
 	a.active = a.rules
-	a.notif = newNotifier(cfg.QueueSize, cfg.Retries, a.events)
+	a.notif = newNotifier(cfg.QueueSize, cfg.Retries, a.events, log)
 	a.eng = newEngine(cfg.Name, host, a.events, a.notif.enqueue)
 	a.eng.log = log
 	a.sched = newScheduler(cfg.ReadWorkers, cfg.PollInterval.D(), cfg.IdlePollInterval.D())

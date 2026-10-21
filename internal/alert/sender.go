@@ -20,8 +20,8 @@ type Sender struct {
 	queue     chan job
 	retries   int
 	userAgent string
-	// OnResult, if set, is called after each delivery (err nil on success).
-	OnResult func(a Alert, hook string, err error)
+	// OnResult, if set, is called after each delivery, successful or not.
+	OnResult func(a Alert, r Result)
 
 	Sent    atomic.Uint64
 	Failed  atomic.Uint64
@@ -33,6 +33,15 @@ type Sender struct {
 type job struct {
 	alert Alert
 	hook  *Hook
+}
+
+// Result is the outcome of delivering one alert to one webhook.
+type Result struct {
+	Hook     string        // the webhook's name
+	Err      error         // nil when it was delivered
+	Status   int           // the last HTTP status received; 0 if none
+	Attempts int           // requests made, retries included
+	Took     time.Duration // from the first attempt to the outcome, waits included
 }
 
 // ShutdownGrace is how long deliveries may continue after stop is requested.
@@ -107,11 +116,15 @@ func (s *Sender) Enqueue(a Alert, h *Hook) bool {
 }
 
 func (s *Sender) deliver(ctx context.Context, j job) {
+	start := time.Now()
+	res := Result{Hook: j.hook.Name}
 	body, ctype, err := Render(j.alert, j.hook)
 	if err == nil {
 		backoff := time.Second
 		for attempt := 0; ; attempt++ {
-			if err = s.send(ctx, j.hook, body, ctype); err == nil || attempt >= s.retries || ctx.Err() != nil {
+			res.Attempts++
+			res.Status, err = s.send(ctx, j.hook, body, ctype)
+			if err == nil || attempt >= s.retries || ctx.Err() != nil {
 				break
 			}
 			select {
@@ -129,16 +142,19 @@ func (s *Sender) deliver(ctx context.Context, j job) {
 		s.Failed.Add(1)
 	}
 	if s.OnResult != nil {
-		s.OnResult(j.alert, j.hook.Name, err)
+		res.Err, res.Took = err, time.Since(start)
+		s.OnResult(j.alert, res)
 	}
 }
 
-func (s *Sender) send(ctx context.Context, h *Hook, body []byte, ctype string) error {
+// send makes one request; it returns the HTTP status (0 when there was no
+// response) and an error for anything but a 2xx.
+func (s *Sender) send(ctx context.Context, h *Hook, body []byte, ctype string) (int, error) {
 	ctx, cancel := context.WithTimeout(ctx, h.Timeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, h.Method, h.URL, bytes.NewReader(body))
 	if err != nil {
-		return err
+		return 0, err
 	}
 	req.Header.Set("Content-Type", ctype)
 	req.Header.Set("User-Agent", s.userAgent)
@@ -147,14 +163,14 @@ func (s *Sender) send(ctx context.Context, h *Hook, body []byte, ctype string) e
 	}
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer resp.Body.Close()
 	// Drain a bounded amount so the connection can be reused, never more.
 	snippet, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
 	io.Copy(io.Discard, io.LimitReader(resp.Body, 64*1024))
 	if resp.StatusCode >= 300 {
-		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(snippet)))
+		return resp.StatusCode, fmt.Errorf("HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(snippet)))
 	}
-	return nil
+	return resp.StatusCode, nil
 }

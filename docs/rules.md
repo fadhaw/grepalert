@@ -154,8 +154,21 @@ level=DEBUG msg="rule matched, alert suppressed" rule=deploy-failed file=/var/lo
 level=DEBUG msg="rule matched, but the line is excluded" rule=deploy-failed file=/var/log/app/app.log line="ERROR Failed to deploy \"smoke-test\""
 ```
 
+Then, for each alert, what happened at each webhook:
+
+```
+level=DEBUG msg="webhook delivered" rule=deploy-failed webhook=chat status=200 attempts=1 took=5ms
+level=WARN msg="webhook delivery failed" rule=deploy-failed webhook=pager attempts=3 took=3.01s err="HTTP 502: upstream down"
+```
+
+- **`webhook delivered`** shows the HTTP status, how many attempts it took, and how long.
+- **`webhook delivery failed`** is logged at every level, not only debug, after the last retry (`retries` in [agent.yaml](config-agent.md#sending-alerts)). It also appears in the dashboard's Events tab.
+- **`webhook queue full`** (`WARN`, at most every 10 seconds): alerts are coming faster than the webhooks take them, and new ones are dropped.
+- **Agents connected to a dashboard** hand their alerts to it, and the dashboard sends them: the agent logs `alert handed to the dashboard`, and the delivery shows in the dashboard's alert history. When the dashboard is unreachable, the agent sends alerts itself and logs those deliveries as above.
+
 - **No `rule matched` line at all:** the pattern doesn't match the line as the agent reads it, or the agent doesn't follow the file. Check the `following file` lines it logs at start ([Which files an agent follows](agents.md#which-files-an-agent-follows)), and try the line in the Rule playground.
 - **`alert suppressed`:** the rule's `suppress` window already sent its alerts; the rest come as one summary when the window ends.
+- **`sending alert` but nothing arrives:** look for `webhook delivery failed` and its `err`; an HTTP status, a timeout or a connection error tells you where to look.
 - **`excluded`:** the line also matches the rule's `exclude`.
 
 Lines are cut at 1 KB in the log. Debug logging writes a line for every match, so turn it off again on busy logs; at the default level, matching costs nothing extra.

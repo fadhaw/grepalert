@@ -181,7 +181,7 @@ Only used by rules with a [`kubernetes:` source](kubernetes.md).
 
 | Setting | Default | Meaning |
 |---|---|---|
-| `log_level` | `info` | `debug`, `info`, `warn` or `error`. At `debug` the agent also logs every line a rule matches, with its captured values and what happened to it: sent as an alert, suppressed, or excluded. See [Debugging rules](rules.md#debugging-rules). |
+| `log_level` | `info` | `debug`, `info`, `warn` or `error`. At `debug` the agent also logs every line a rule matches, with its captured values and what happened to it (sent as an alert, suppressed, or excluded), and every webhook delivery with its HTTP status. Failed deliveries are logged at every level. See [Debugging rules](rules.md#debugging-rules). |
 
 ## Command line
 
