@@ -1,7 +1,9 @@
 package agent
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -53,6 +55,7 @@ type engine struct {
 	agentName, host string
 	notify          func(Alert, *rules.CompiledRule)
 	events          *ring
+	log             *slog.Logger // matches are logged at debug level; nil: not at all
 
 	snap        atomic.Pointer[snapshot]
 	alertsTotal atomic.Uint64 // every alert dispatched, across rule changes
@@ -147,6 +150,9 @@ func (e *engine) process(path string, line []byte) {
 			continue
 		}
 		if r.ExcludeRe != nil && r.ExcludeRe.Match(line) {
+			if e.debug() {
+				e.log.Debug("rule matched, but the line is excluded", "rule", r.Name, "file", path, "line", debugLine(line))
+			}
 			continue
 		}
 		e.match(r, path, line, m)
@@ -190,18 +196,42 @@ func (e *engine) match(r *rules.CompiledRule, path string, line []byte, m []int)
 			ss.lastLine = string(line)
 			ss.lastFile = path
 			st.Suppressed++
+			n := ss.suppressed
 			e.mu.Unlock()
+			if e.debug() {
+				e.log.Debug("rule matched, alert suppressed", "rule", r.Name, "file", path, "line", debugLine(line),
+					"groups", captures(r, line, m), "suppressed_in_window", n)
+			}
 			return
 		}
 	}
 	st.Alerts++
 	e.mu.Unlock()
+	if e.debug() {
+		e.log.Debug("rule matched, sending alert", "rule", r.Name, "file", path, "line", debugLine(line),
+			"groups", captures(r, line, m))
+	}
 
 	a := e.newAlert(alert.KindMatch, r, path, string(line), now)
 	a.GroupKey = group
 	a.Suppressed = carried
 	a.Groups = captures(r, line, m)
 	e.dispatch(a, r)
+}
+
+// debug reports whether matches are logged, so the hot path only builds log
+// records when they will be written.
+func (e *engine) debug() bool {
+	return e.log != nil && e.log.Enabled(context.Background(), slog.LevelDebug)
+}
+
+// debugLine is a line as logged at debug level: cut at 1 KB.
+func debugLine(line []byte) string {
+	const max = 1024
+	if len(line) > max {
+		return string(line[:max]) + "…"
+	}
+	return string(line)
 }
 
 // captures returns the named groups of a match, for webhook templates

@@ -3,6 +3,7 @@ package agent
 import (
 	"bytes"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -42,6 +43,11 @@ type Config struct {
 	// disables it.
 	StateFile     string         `yaml:"state_file"`
 	StateInterval rules.Duration `yaml:"state_interval"`
+
+	// LogLevel is how much the agent logs: "debug", "info" (default), "warn"
+	// or "error". At debug it also logs every line a rule matches, and what
+	// happened to it (alerted, suppressed or excluded).
+	LogLevel string `yaml:"log_level"`
 
 	// StartFrom is where to begin reading files that exist at startup:
 	// "end" (default, only new lines) or "beginning".
@@ -148,6 +154,12 @@ func LoadConfig(path string) (Config, error) {
 	if err := dec.Decode(&c); err != nil {
 		return c, fmt.Errorf("%s: %w", path, err)
 	}
+	c.LogLevel = strings.ToLower(strings.TrimSpace(c.LogLevel))
+	switch c.LogLevel {
+	case "", "debug", "info", "warn", "error":
+	default:
+		return c, fmt.Errorf("%s: log_level must be debug, info, warn or error", path)
+	}
 	if c.StartFrom != "" && c.StartFrom != "end" && c.StartFrom != "beginning" {
 		return c, fmt.Errorf("%s: start_from must be \"end\" or \"beginning\"", path)
 	}
@@ -184,4 +196,17 @@ func ParseByteSize(s string) (int64, error) {
 		return 0, fmt.Errorf("invalid size %q", s)
 	}
 	return v * mult, nil
+}
+
+// SlogLevel is LogLevel as a log/slog level (info when unset).
+func (c Config) SlogLevel() slog.Level {
+	switch c.LogLevel {
+	case "debug":
+		return slog.LevelDebug
+	case "warn":
+		return slog.LevelWarn
+	case "error":
+		return slog.LevelError
+	}
+	return slog.LevelInfo
 }

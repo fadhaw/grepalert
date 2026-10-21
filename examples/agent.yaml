@@ -69,3 +69,6 @@ retries: 2                      # retries of a failed delivery
 # --- Limits --------------------------------------------------------------
 event_buffer: 500               # recent events kept for the dashboard
 memory_limit: 64MiB             # soft memory limit of the Go runtime
+
+# --- Logging -------------------------------------------------------------
+log_level: info                 # debug | info | warn | error; debug also logs every line a rule matches

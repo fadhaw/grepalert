@@ -142,5 +142,22 @@ When a [dashboard group](dashboard.md) manages an agent's rules, the agent can s
 | Rule playground | dashboard → Tools | what pasted lines match and capture, and the exact webhook bodies |
 | Test a line | dashboard → agent → Test a line | which of an agent's running rules match a line |
 | Dry run | dashboard → group → Rules | how many alerts draft rules would have sent on the last hours of real logs ([Safe rule rollout](rollout.md)) |
+| Debug log | the agent's own log | every line a running rule matches, and whether it alerted, was suppressed or excluded ([below](#debugging-rules)) |
+
+### Debugging rules
+
+When a rule doesn't alert as expected on a running agent, turn on debug logging: `log_level: debug` in [agent.yaml](config-agent.md#logging), `GREPALERT_LOG_LEVEL=debug` for the container image, or `grepalert-agent -debug`. The agent then logs every line a rule matches, with what it captured and what happened next:
+
+```
+level=DEBUG msg="rule matched, sending alert" rule=deploy-failed file=/var/log/app/app.log line="ERROR Failed to deploy \"billing\"" groups=map[app:billing]
+level=DEBUG msg="rule matched, alert suppressed" rule=deploy-failed file=/var/log/app/app.log line="ERROR Failed to deploy \"billing\"" groups=map[app:billing] suppressed_in_window=1
+level=DEBUG msg="rule matched, but the line is excluded" rule=deploy-failed file=/var/log/app/app.log line="ERROR Failed to deploy \"smoke-test\""
+```
+
+- **No `rule matched` line at all:** the pattern doesn't match the line as the agent reads it, or the agent doesn't follow the file. Check the `following file` lines it logs at start ([Which files an agent follows](agents.md#which-files-an-agent-follows)), and try the line in the Rule playground.
+- **`alert suppressed`:** the rule's `suppress` window already sent its alerts; the rest come as one summary when the window ends.
+- **`excluded`:** the line also matches the rule's `exclude`.
+
+Lines are cut at 1 KB in the log. Debug logging writes a line for every match, so turn it off again on busy logs; at the default level, matching costs nothing extra.
 
 More examples: the [Rule cookbook](cookbook.md), and [examples/rules.yaml](../examples/rules.yaml).

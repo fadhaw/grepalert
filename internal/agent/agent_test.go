@@ -317,3 +317,27 @@ func TestAgentLogsTheFilesItFollows(t *testing.T) {
 		}
 	}
 }
+
+func TestLogLevelSetting(t *testing.T) {
+	dir := t.TempDir()
+	load := func(level string) (Config, error) {
+		p := filepath.Join(dir, "agent.yaml")
+		os.WriteFile(p, []byte("rules_file: rules.yaml\nlog_level: "+level+"\n"), 0o644)
+		return LoadConfig(p)
+	}
+	for in, want := range map[string]slog.Level{
+		`""`: slog.LevelInfo, "debug": slog.LevelDebug, "DEBUG": slog.LevelDebug,
+		"Info": slog.LevelInfo, "warn": slog.LevelWarn, "error": slog.LevelError,
+	} {
+		c, err := load(in)
+		if err != nil {
+			t.Fatalf("log_level %s: %v", in, err)
+		}
+		if got := c.SlogLevel(); got != want {
+			t.Errorf("log_level %s = %v, want %v", in, got, want)
+		}
+	}
+	if _, err := load("verbose"); err == nil || !strings.Contains(err.Error(), "log_level") {
+		t.Errorf("log_level verbose: err = %v, want a log_level error", err)
+	}
+}

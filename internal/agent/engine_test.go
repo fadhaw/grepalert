@@ -2,6 +2,7 @@ package agent
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 	"testing"
 	"time"
@@ -187,5 +188,59 @@ func TestAbsenceRule(t *testing.T) {
 	e.process(f, []byte("12:31 heartbeat OK"))
 	if len(*got) != 2 || (*got)[1].Kind != "recovered" {
 		t.Fatalf("alerts = %+v, want a recovery alert", *got)
+	}
+}
+
+// At log_level debug every matching line is logged with what happened to
+// it; at the default level nothing is.
+func TestDebugLogsMatches(t *testing.T) {
+	const src = `
+webhooks:
+  - name: h
+    url: http://127.0.0.1:1/hook
+rules:
+  - name: deploy-failed
+    files: [/var/log/app.log]
+    pattern: 'Failed to deploy "(?P<app>[^"]+)"'
+    exclude: 'smoke-test'
+    webhooks: [h]
+    suppress: {window: 10m}
+`
+	const f = "/var/log/app.log"
+	lines := []string{
+		`ERROR Failed to deploy "billing"`,    // alert
+		`ERROR Failed to deploy "billing"`,    // suppressed
+		`ERROR Failed to deploy "smoke-test"`, // excluded
+		`INFO deployed "shop"`,                // no match: not logged
+	}
+	run := func(level slog.Level) string {
+		e, _, _ := newTestEngine(t, src)
+		var out strings.Builder
+		e.log = slog.New(slog.NewTextHandler(&out, &slog.HandlerOptions{Level: level}))
+		for _, l := range lines {
+			e.process(f, []byte(l))
+		}
+		return out.String()
+	}
+
+	log := run(slog.LevelDebug)
+	for _, want := range []string{
+		`level=DEBUG msg="rule matched, sending alert" rule=deploy-failed file=/var/log/app.log line="ERROR Failed to deploy \"billing\"" groups=map[app:billing]`,
+		`level=DEBUG msg="rule matched, alert suppressed" rule=deploy-failed file=/var/log/app.log line="ERROR Failed to deploy \"billing\"" groups=map[app:billing] suppressed_in_window=1`,
+		`level=DEBUG msg="rule matched, but the line is excluded" rule=deploy-failed file=/var/log/app.log line="ERROR Failed to deploy \"smoke-test\""`,
+	} {
+		if !strings.Contains(log, want) {
+			t.Errorf("debug log lacks\n  %s\ngot:\n%s", want, log)
+		}
+	}
+	if strings.Contains(log, "shop") {
+		t.Errorf("a line no rule matched was logged:\n%s", log)
+	}
+	if strings.Count(log, "\n") != 3 {
+		t.Errorf("want 3 log lines, got:\n%s", log)
+	}
+
+	if log := run(slog.LevelInfo); log != "" {
+		t.Errorf("matches logged at info level:\n%s", log)
 	}
 }

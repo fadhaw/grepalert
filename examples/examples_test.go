@@ -24,13 +24,17 @@ import (
 var envRef = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)\}`)
 
 // setEnv gives every ${VAR} in raw a value: a URL for *URL variables
-// (webhooks check theirs), a plain token otherwise.
+// (webhooks check theirs), a valid level for *LOG_LEVEL ones, a plain
+// token otherwise.
 func setEnv(t *testing.T, raw []byte) {
 	for _, m := range envRef.FindAllSubmatch(raw, -1) {
 		name := string(m[1])
 		val := "example-" + strings.ToLower(name)
-		if strings.HasSuffix(name, "_URL") {
+		switch {
+		case strings.HasSuffix(name, "_URL"):
 			val = "https://hooks.example.test/" + strings.ToLower(name)
+		case strings.HasSuffix(name, "_LOG_LEVEL"):
+			val = "debug"
 		}
 		t.Setenv(name, val)
 	}

@@ -23,6 +23,7 @@ func main() {
 	configPath := flag.String("config", "agent.yaml", "path to agent config")
 	check := flag.String("check", "", "validate a rules file and exit")
 	version := flag.Bool("version", false, "print version and exit")
+	debug := flag.Bool("debug", false, "log every line a rule matches (same as log_level: debug)")
 	flag.Parse()
 
 	if *version {
@@ -42,19 +43,24 @@ func main() {
 		os.Exit(1)
 	}
 
-	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	var level slog.LevelVar // info until the config says otherwise
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: &level}))
 	cfg, err := agent.LoadConfig(*configPath)
 	if err != nil {
 		log.Error("load config", "err", err)
 		os.Exit(1)
 	}
+	if *debug {
+		cfg.LogLevel = "debug"
+	}
+	level.Set(cfg.SlogLevel())
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	a := agent.New(cfg, log)
 	cfg = a.Config() // with defaults applied
-	log.Info("starting", "name", cfg.Name, "version", agent.Version, "dashboard", cfg.Dashboard.URL, "listen", cfg.Listen)
+	log.Info("starting", "name", cfg.Name, "version", agent.Version, "dashboard", cfg.Dashboard.URL, "listen", cfg.Listen, "log_level", cfg.SlogLevel())
 
 	var srv *http.Server
 	if cfg.Listen != "off" {

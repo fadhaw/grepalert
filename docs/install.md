@@ -115,6 +115,7 @@ The environment variables of the built-in configs:
 | agent | `GREPALERT_ENROLL_TOKEN` | the dashboard's enrollment token |
 | agent | `GREPALERT_AGENT_NAME` | the agent's name (default: the container's hostname) |
 | agent | `GREPALERT_AGENT_TOKEN` | a token for the agent's own API (port 9300) |
+| agent | `GREPALERT_LOG_LEVEL` | `debug` to log every line a rule matches (default `info`) |
 | agent | anything your rules use | e.g. `SLACK_WEBHOOK_URL` for `url: ${SLACK_WEBHOOK_URL}` |
 
 The built-in configs are [examples/container/agent.yaml](../examples/container/agent.yaml) and [examples/container/dashboard.yaml](../examples/container/dashboard.yaml). For labels, SSO, TLS and everything else, mount your own file over them, at `/etc/grepalert/agent.yaml` or `/etc/grepalert/dashboard.yaml`.

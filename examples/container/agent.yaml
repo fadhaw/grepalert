@@ -6,11 +6,13 @@
 #   GREPALERT_DASHBOARD_URL   connect to a dashboard; leave empty to run standalone
 #   GREPALERT_ENROLL_TOKEN    enrollment token from the dashboard
 #   GREPALERT_AGENT_TOKEN     token for the agent's own API (standalone)
+#   GREPALERT_LOG_LEVEL       debug to log every line a rule matches (default: info)
 #
 # Rules, read positions and the dashboard identity live in /var/lib/grepalert:
 # mount a volume there. Standalone, put your rules.yaml in it.
 name: ${GREPALERT_AGENT_NAME}
 token: ${GREPALERT_AGENT_TOKEN}
+log_level: ${GREPALERT_LOG_LEVEL}
 rules_file: /var/lib/grepalert/rules.yaml
 listen: ":9300"
 dashboard:

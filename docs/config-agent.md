@@ -88,6 +88,9 @@ retries: 2                      # retries of a failed delivery
 # --- Limits --------------------------------------------------------------
 event_buffer: 500               # recent events kept for the dashboard
 memory_limit: 64MiB             # soft memory limit of the Go runtime
+
+# --- Logging -------------------------------------------------------------
+log_level: info                 # debug | info | warn | error; debug also logs every line a rule matches
 ```
 
 ## Settings
@@ -174,10 +177,17 @@ Only used by rules with a [`kubernetes:` source](kubernetes.md).
 | `event_buffer` | `500` | Recent events (alerts, rule changes, errors) kept for the dashboard's Events tab. |
 | `memory_limit` | `64MiB` | Soft memory limit of the Go runtime: it collects garbage harder as memory nears this. See [Memory and performance](performance.md). |
 
+### Logging
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `log_level` | `info` | `debug`, `info`, `warn` or `error`. At `debug` the agent also logs every line a rule matches, with its captured values and what happened to it: sent as an alert, suppressed, or excluded. See [Debugging rules](rules.md#debugging-rules). |
+
 ## Command line
 
 | Flag | Meaning |
 |---|---|
 | `-config <file>` | The agent.yaml to use (default `agent.yaml`). |
 | `-check <rules file>` | Validate a rules file and exit: `OK: …` and exit code 0, or the errors and exit code 1. Use it in CI on your rules repository. |
+| `-debug` | Log every line a rule matches, like `log_level: debug`. |
 | `-version` | Print the version and exit. |
