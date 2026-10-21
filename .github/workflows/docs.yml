@@ -1,7 +1,7 @@
 name: Docs
 
 # Builds the documentation site from README.md and docs/ and publishes it to
-# GitHub Pages: https://opreklabs.github.io/grepalert/
+# GitHub Pages: https://fadhaw.github.io/grepalert/
 #
 # One-time setup: repository Settings → Pages → Source: "GitHub Actions".
 #

@@ -1,5 +1,5 @@
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null | sed 's/^v//')
-LDFLAGS := -s -w -X github.com/opreklabs/grepalert/internal/version.Version=$(VERSION)
+LDFLAGS := -s -w -X github.com/fadhaw/grepalert/internal/version.Version=$(VERSION)
 
 .PHONY: build ui ui-dev test dist clean
 

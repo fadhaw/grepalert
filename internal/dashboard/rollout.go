@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/opreklabs/grepalert/internal/alert"
+	"github.com/fadhaw/grepalert/internal/alert"
 )
 
 // A staged rollout sends a group's new rules to a few agents first (the

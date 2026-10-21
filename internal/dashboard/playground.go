@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/opreklabs/grepalert/internal/agent"
-	"github.com/opreklabs/grepalert/internal/rules"
+	"github.com/fadhaw/grepalert/internal/agent"
+	"github.com/fadhaw/grepalert/internal/rules"
 )
 
 // handlePlayground runs sample log lines through draft rules and shows what

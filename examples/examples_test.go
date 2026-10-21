@@ -16,9 +16,9 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/opreklabs/grepalert/internal/agent"
-	"github.com/opreklabs/grepalert/internal/dashboard"
-	"github.com/opreklabs/grepalert/internal/rules"
+	"github.com/fadhaw/grepalert/internal/agent"
+	"github.com/fadhaw/grepalert/internal/dashboard"
+	"github.com/fadhaw/grepalert/internal/rules"
 )
 
 var envRef = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)\}`)

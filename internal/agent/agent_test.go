@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/opreklabs/grepalert/internal/rules"
+	"github.com/fadhaw/grepalert/internal/rules"
 )
 
 // TestRestartDoesNotMissLines runs the agent, stops it, writes lines while it

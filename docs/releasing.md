@@ -35,7 +35,7 @@ The workflow then:
 
 **First release only:** GitHub creates the two container packages as **private**. On GitHub, open your profile → **Packages** → each `grepalert-*` package → **Package settings**, set the visibility to **Public**, and link it to the repository. Only then can anyone pull the images.
 
-When the release is published, the workflow also rebuilds the [documentation site](https://opreklabs.github.io/grepalert/), so its release notes page shows the new version.
+When the release is published, the workflow also rebuilds the [documentation site](https://fadhaw.github.io/grepalert/), so its release notes page shows the new version.
 
 The [CI workflow](../.github/workflows/ci.yml) runs on every push to `main` and on pull requests:
 - builds the UI

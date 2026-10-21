@@ -23,7 +23,7 @@ COPY --from=ui /src/internal/dashboard/web/dist ./internal/dashboard/web/dist
 ARG VERSION=dev
 ARG TARGETOS TARGETARCH
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath \
-      -ldflags "-s -w -X github.com/opreklabs/grepalert/internal/version.Version=${VERSION}" \
+      -ldflags "-s -w -X github.com/fadhaw/grepalert/internal/version.Version=${VERSION}" \
       -o /out/ ./cmd/... ./examples/compose/webhook-sink ./examples/loadtest/loadgen
 
 FROM alpine:3.22 AS agent

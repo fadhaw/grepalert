@@ -6,8 +6,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/opreklabs/grepalert/internal/alert"
-	"github.com/opreklabs/grepalert/internal/rules"
+	"github.com/fadhaw/grepalert/internal/alert"
+	"github.com/fadhaw/grepalert/internal/rules"
 )
 
 // notifier decides where an alert goes. Agents connected to a dashboard hand

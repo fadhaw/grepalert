@@ -1,4 +1,4 @@
-module github.com/opreklabs/grepalert
+module github.com/fadhaw/grepalert
 
 go 1.26.0
 

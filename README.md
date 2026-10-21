@@ -6,7 +6,7 @@
 
 Tail a file or the pods a Kubernetes label selector picks, match a pattern, post a clean message to Slack, Teams or any webhook. Run it on one server, or manage a whole fleet from the dashboard.
 
-📖 **Documentation: [opreklabs.github.io/grepalert](https://opreklabs.github.io/grepalert/)**
+📖 **Documentation: [fadhaw.github.io/grepalert](https://fadhaw.github.io/grepalert/)**
 
 **On its own.** One agent and a rules file on the server is all it takes:
 
@@ -42,11 +42,11 @@ An agent needs two files:
 
 This takes about five minutes on Linux or macOS; Windows works the same with `grepalert-agent.exe`.
 
-**1. Get the agent.** Download it from [Releases](https://github.com/OprekLabs/grepalert/releases); other platforms and containers are in [Install](docs/install.md).
+**1. Get the agent.** Download it from [Releases](https://github.com/fadhaw/grepalert/releases); other platforms and containers are in [Install](docs/install.md).
 
 ```bash
 mkdir grepalert && cd grepalert
-curl -fsSL https://github.com/OprekLabs/grepalert/releases/download/v0.1.0/grepalert_0.1.0_linux_amd64.tar.gz | tar xz --strip-components=1
+curl -fsSL https://github.com/fadhaw/grepalert/releases/download/v0.1.0/grepalert_0.1.0_linux_amd64.tar.gz | tar xz --strip-components=1
 ```
 
 **2. Write `agent.yaml`.** This is the smallest useful one: rules from `rules.yaml` in this folder, and the agent's API on this machine only.
@@ -164,7 +164,7 @@ A complete demo includes:
 - a log generator, and a page that shows the alerts as they arrive
 
 ```bash
-git clone https://github.com/OprekLabs/grepalert.git
+git clone https://github.com/fadhaw/grepalert.git
 cd grepalert/examples/compose
 docker compose up -d --build
 ```
@@ -175,8 +175,8 @@ Open http://localhost:9400 (`admin` / `demo`); alerts arrive at http://localhost
 
 | Way | How |
 |---|---|
-| **Binaries** | Linux, macOS and Windows (amd64/arm64) on [Releases](https://github.com/OprekLabs/grepalert/releases), with a systemd unit in `examples/` |
-| **Containers** | `ghcr.io/opreklabs/grepalert-agent` and `ghcr.io/opreklabs/grepalert-dashboard`, configured with environment variables |
+| **Binaries** | Linux, macOS and Windows (amd64/arm64) on [Releases](https://github.com/fadhaw/grepalert/releases), with a systemd unit in `examples/` |
+| **Containers** | `ghcr.io/fadhaw/grepalert-agent` and `ghcr.io/fadhaw/grepalert-dashboard`, configured with environment variables |
 | **Kubernetes** | Follow the pods a label selector picks, or log files on a shared volume: [Kubernetes](docs/kubernetes.md) |
 | **From source** | `make build` (Go 1.26+, and Node.js 20+ for the dashboard's UI) |
 
@@ -184,7 +184,7 @@ All of it in detail: [Install](docs/install.md).
 
 ## Documentation
 
-Also on the documentation site, with search: [opreklabs.github.io/grepalert](https://opreklabs.github.io/grepalert/). Read in this order, or jump to what you need.
+Also on the documentation site, with search: [fadhaw.github.io/grepalert](https://fadhaw.github.io/grepalert/). Read in this order, or jump to what you need.
 
 **Setting up**
 1. [Install](docs/install.md): binaries, running the agent as a service, containers, building from source.

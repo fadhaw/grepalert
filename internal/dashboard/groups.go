@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/opreklabs/grepalert/internal/rules"
+	"github.com/fadhaw/grepalert/internal/rules"
 )
 
 // PushResult is the outcome of making one agent run its group's rules.

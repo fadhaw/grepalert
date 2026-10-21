@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/opreklabs/grepalert/internal/rules"
+	"github.com/fadhaw/grepalert/internal/rules"
 )
 
 func TestSimulate(t *testing.T) {

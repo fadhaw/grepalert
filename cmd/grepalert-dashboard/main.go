@@ -14,8 +14,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/opreklabs/grepalert/internal/dashboard"
-	"github.com/opreklabs/grepalert/internal/version"
+	"github.com/fadhaw/grepalert/internal/dashboard"
+	"github.com/fadhaw/grepalert/internal/version"
 )
 
 func main() {

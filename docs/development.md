@@ -42,7 +42,7 @@ Type-check with `cd ui && npm run typecheck`.
 
 ## The documentation site
 
-The site at [opreklabs.github.io/grepalert](https://opreklabs.github.io/grepalert/) is built from the README and `docs/` with [MkDocs Material](https://squidfunk.github.io/mkdocs-material/). Edit those Markdown files, and keep them readable on GitHub too.
+The site at [fadhaw.github.io/grepalert](https://fadhaw.github.io/grepalert/) is built from the README and `docs/` with [MkDocs Material](https://squidfunk.github.io/mkdocs-material/). Edit those Markdown files, and keep them readable on GitHub too.
 
 `scripts/build_site.py` prepares them for the site:
 - the README becomes the home page

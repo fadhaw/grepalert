@@ -151,7 +151,7 @@ spec:
     - name: app
       volumeMounts: [{name: logs, mountPath: /var/log/app}]
     - name: grepalert
-      image: ghcr.io/opreklabs/grepalert-agent:0.2.0
+      image: ghcr.io/fadhaw/grepalert-agent:0.2.0
       args: ["-config", "/etc/grepalert/agent.yaml"]
       volumeMounts:
         - {name: logs, mountPath: /var/log/app, readOnly: true}

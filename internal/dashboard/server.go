@@ -19,7 +19,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/opreklabs/grepalert/internal/rules"
+	"github.com/fadhaw/grepalert/internal/rules"
 )
 
 const maxProxyBody = 2 << 20

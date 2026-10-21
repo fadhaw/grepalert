@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/opreklabs/grepalert/internal/alert"
-	"github.com/opreklabs/grepalert/internal/rules"
+	"github.com/fadhaw/grepalert/internal/alert"
+	"github.com/fadhaw/grepalert/internal/rules"
 )
 
 // Connected agents hand their alerts to the dashboard, which:

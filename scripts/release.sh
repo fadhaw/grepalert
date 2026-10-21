@@ -9,7 +9,7 @@ cd "$(dirname "$0")/.."
 
 VERSION="${VERSION:-$(git describe --tags --always --dirty 2>/dev/null | sed 's/^v//')}"
 TARGETS="${TARGETS:-linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64}"
-LDFLAGS="-s -w -X github.com/opreklabs/grepalert/internal/version.Version=${VERSION}"
+LDFLAGS="-s -w -X github.com/fadhaw/grepalert/internal/version.Version=${VERSION}"
 
 # The dashboard embeds the web UI, so build it first.
 if [ "${SKIP_UI:-}" != 1 ]; then

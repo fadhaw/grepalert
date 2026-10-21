@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/opreklabs/grepalert/internal/rules"
+	"github.com/fadhaw/grepalert/internal/rules"
 )
 
 const maxRulesSize = 1 << 20

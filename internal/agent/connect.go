@@ -20,8 +20,8 @@ import (
 
 	"time"
 
-	"github.com/opreklabs/grepalert/internal/alert"
-	"github.com/opreklabs/grepalert/internal/rules"
+	"github.com/fadhaw/grepalert/internal/alert"
+	"github.com/fadhaw/grepalert/internal/rules"
 )
 
 // DashboardConfig makes the agent connect out to a dashboard, so the

@@ -6,13 +6,13 @@
 |---|---|---|
 | [Binaries](#binaries) | Linux, macOS, Windows | Linux, macOS, Windows |
 | [As a Linux service](#run-the-agent-as-a-service-systemd) | systemd unit included | any process manager |
-| [Containers](#containers) | `ghcr.io/opreklabs/grepalert-agent` | `ghcr.io/opreklabs/grepalert-dashboard` |
+| [Containers](#containers) | `ghcr.io/fadhaw/grepalert-agent` | `ghcr.io/fadhaw/grepalert-dashboard` |
 | [Kubernetes](kubernetes.md) | pod logs, or files on a volume | as a container |
 | [From source](#from-source) | Go 1.26+ | Go 1.26+, Node.js 20+ |
 
 ## Binaries
 
-Each archive on [Releases](https://github.com/OprekLabs/grepalert/releases) holds:
+Each archive on [Releases](https://github.com/fadhaw/grepalert/releases) holds:
 - `grepalert-agent` and `grepalert-dashboard`
 - the README, release notes and license
 - `examples/`: complete `agent.yaml`, `rules.yaml` and `dashboard.yaml`, and a systemd unit
@@ -26,8 +26,8 @@ Each archive on [Releases](https://github.com/OprekLabs/grepalert/releases) hold
 | Windows | `grepalert_<version>_windows_amd64.zip` |
 
 ```bash
-curl -fsSLO https://github.com/OprekLabs/grepalert/releases/download/v0.1.0/grepalert_0.1.0_linux_amd64.tar.gz
-curl -fsSLO https://github.com/OprekLabs/grepalert/releases/download/v0.1.0/checksums.txt
+curl -fsSLO https://github.com/fadhaw/grepalert/releases/download/v0.1.0/grepalert_0.1.0_linux_amd64.tar.gz
+curl -fsSLO https://github.com/fadhaw/grepalert/releases/download/v0.1.0/checksums.txt
 sha256sum --check --ignore-missing checksums.txt
 tar xzf grepalert_0.1.0_linux_amd64.tar.gz && cd grepalert_0.1.0_linux_amd64
 ./grepalert-agent -version
@@ -81,7 +81,7 @@ docker run -d --name grepalert-dashboard -p 9400:9400 \
   -e GREPALERT_DASHBOARD_PASSWORD=change-me-please \
   -e GREPALERT_ENROLL_TOKEN=$(openssl rand -hex 16) \
   -v grepalert-dashboard:/var/lib/grepalert-dashboard \
-  ghcr.io/opreklabs/grepalert-dashboard:0.1.0
+  ghcr.io/fadhaw/grepalert-dashboard:0.1.0
 ```
 
 **Agent connected to that dashboard.** It enrolls itself, and gets its rules from the group it joins. Use the same enrollment token:
@@ -92,7 +92,7 @@ docker run -d --name grepalert-agent \
   -e GREPALERT_ENROLL_TOKEN=<the same token> \
   -v /var/log:/var/log:ro \
   -v grepalert-agent:/var/lib/grepalert \
-  ghcr.io/opreklabs/grepalert-agent:0.1.0
+  ghcr.io/fadhaw/grepalert-agent:0.1.0
 ```
 
 **Agent on its own.** Put your `rules.yaml` in a folder and mount it at `/var/lib/grepalert`. Edits to it are applied without a restart:
@@ -102,7 +102,7 @@ docker run -d --name grepalert-agent \
   -e SLACK_WEBHOOK_URL=https://hooks.slack.com/services/... \
   -v $PWD/grepalert:/var/lib/grepalert \
   -v /var/log:/var/log:ro \
-  ghcr.io/opreklabs/grepalert-agent:0.1.0
+  ghcr.io/fadhaw/grepalert-agent:0.1.0
 ```
 
 The environment variables of the built-in configs:
@@ -122,7 +122,7 @@ The built-in configs are [examples/container/agent.yaml](../examples/container/a
 ## From source
 
 ```bash
-git clone https://github.com/OprekLabs/grepalert.git && cd grepalert
+git clone https://github.com/fadhaw/grepalert.git && cd grepalert
 make build                              # the web UI and both binaries, into bin/
 ```
 

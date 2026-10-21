@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/opreklabs/grepalert/internal/agent"
-	"github.com/opreklabs/grepalert/internal/rules"
+	"github.com/fadhaw/grepalert/internal/agent"
+	"github.com/fadhaw/grepalert/internal/rules"
 )
 
 // waitFor polls cond until it is true or the timeout expires.

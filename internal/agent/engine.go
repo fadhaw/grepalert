@@ -7,8 +7,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/opreklabs/grepalert/internal/alert"
-	"github.com/opreklabs/grepalert/internal/rules"
+	"github.com/fadhaw/grepalert/internal/alert"
+	"github.com/fadhaw/grepalert/internal/rules"
 )
 
 // Alert is what gets delivered to a webhook (shared with the dashboard).

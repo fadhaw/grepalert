@@ -6,10 +6,10 @@
 # The pages come from README.md and docs/ (scripts/build_site.py turns them
 # into site-src/); edit those, not site-src/.
 site_name: grepalert
-site_url: https://opreklabs.github.io/grepalert/
+site_url: https://fadhaw.github.io/grepalert/
 site_description: Alerts from your logs in five minutes. No Loki, no Elasticsearch, no database.
-repo_url: https://github.com/OprekLabs/grepalert
-repo_name: OprekLabs/grepalert
+repo_url: https://github.com/fadhaw/grepalert
+repo_name: fadhaw/grepalert
 copyright: grepalert is licensed under the Apache License 2.0
 
 docs_dir: site-src
@@ -80,7 +80,7 @@ extra_css:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/OprekLabs/grepalert
+      link: https://github.com/fadhaw/grepalert
   generator: false
 
 not_in_nav: |

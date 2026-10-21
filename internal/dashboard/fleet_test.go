@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/opreklabs/grepalert/internal/agent"
-	"github.com/opreklabs/grepalert/internal/alert"
+	"github.com/fadhaw/grepalert/internal/agent"
+	"github.com/fadhaw/grepalert/internal/alert"
 )
 
 // hookRecorder is a webhook receiver that records alerts.

@@ -145,7 +145,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: agent
-          image: ghcr.io/opreklabs/grepalert-agent:latest
+          image: ghcr.io/fadhaw/grepalert-agent:latest
           args: ["-config", "/etc/grepalert/agent.yaml"]
           env:
             - name: WEBHOOK_URL

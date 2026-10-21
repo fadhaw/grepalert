@@ -20,7 +20,7 @@ import re
 import shutil
 import subprocess
 
-REPO = "https://github.com/OprekLabs/grepalert"
+REPO = "https://github.com/fadhaw/grepalert"
 ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 OUT = os.path.join(ROOT, "site-src")
 LINK = re.compile(r"\]\(([^)\s]+)\)")
@@ -70,7 +70,7 @@ hide: [navigation]
 
 [Get started](docs/install.md){{ .md-button .md-button--primary }}
 [Rule cookbook](docs/cookbook.md){{ .md-button }}
-[GitHub](https://github.com/OprekLabs/grepalert){{ .md-button }}
+[GitHub](https://github.com/fadhaw/grepalert){{ .md-button }}
 </div>
 
 <div class="grid cards" markdown>
