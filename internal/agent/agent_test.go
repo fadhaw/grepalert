@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -224,5 +225,95 @@ func TestRunWaitsForDashboardConnection(t *testing.T) {
 	}
 	if _, err := os.Stat(late); err != nil {
 		t.Fatal("Run returned while the dashboard connection was still handling a request")
+	}
+}
+
+// syncBuffer is a bytes.Buffer safe for a logger and a test to share.
+type syncBuffer struct {
+	mu sync.Mutex
+	b  strings.Builder
+}
+
+func (s *syncBuffer) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.Write(p)
+}
+
+func (s *syncBuffer) String() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.String()
+}
+
+// On start the agent logs which files it follows, which it waits for, and
+// why a pattern matches nothing, so a wrong path or permission is visible.
+func TestAgentLogsTheFilesItFollows(t *testing.T) {
+	dir := t.TempDir()
+	logs := filepath.Join(dir, "logs")
+	os.Mkdir(logs, 0o755)
+	appendFile(t, filepath.Join(logs, "app.log"), "")
+	files := []string{
+		filepath.Join(logs, "*.log"),                    // matches app.log
+		filepath.Join(logs, "later.log"),                // not created yet
+		filepath.Join(dir, "no-such-dir", "*", "x.log"), // nothing there
+	}
+	locked := filepath.Join(dir, "locked")
+	lockedCheck := runtime.GOOS != "windows" && os.Geteuid() != 0 // chmod doesn't stop Windows or root
+	if lockedCheck {
+		os.MkdirAll(filepath.Join(locked, "server1"), 0o755)
+		os.Chmod(locked, 0o000)
+		t.Cleanup(func() { os.Chmod(locked, 0o755) })
+		files = append(files, filepath.Join(locked, "*", "*.log"))
+	}
+	quoted := make([]string, len(files))
+	for i, f := range files {
+		quoted[i] = fmt.Sprintf("%q", f)
+	}
+	rulesPath := filepath.Join(dir, "rules.yaml")
+	os.WriteFile(rulesPath, []byte("webhooks:\n  - name: h\n    url: http://127.0.0.1:1/hook\nrules:\n"+
+		"  - name: errors\n    files: ["+strings.Join(quoted, ", ")+"]\n    pattern: ERROR\n    webhooks: [h]\n"), 0o644)
+
+	var out syncBuffer
+	a := New(Config{RulesFile: rulesPath, StateFile: "off", RescanInterval: rules.Duration(50 * time.Millisecond)},
+		slog.New(slog.NewTextHandler(&out, nil)))
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error)
+	go func() { done <- a.Run(ctx) }()
+	time.Sleep(300 * time.Millisecond) // several rescans: each message must still appear once
+	cancel()
+	<-done
+	log := out.String()
+
+	// expect checks that exactly `times` log lines contain all of parts.
+	expect := func(times int, parts ...string) {
+		t.Helper()
+		n := 0
+		for _, line := range strings.Split(log, "\n") {
+			all := line != ""
+			for _, p := range parts {
+				all = all && strings.Contains(line, p)
+			}
+			if all {
+				n++
+			}
+		}
+		if n != times {
+			t.Errorf("%d log lines with %q, want %d\n%s", n, parts, times, log)
+		}
+	}
+	expect(1, `msg="following file"`, filepath.Join(logs, "app.log"), "rules=errors", "from=end")
+	expect(1, `msg="following file"`, filepath.Join(logs, "later.log"), `from="beginning, once created"`)
+	expect(1, `msg="file does not exist yet, waiting for it"`, filepath.Join(logs, "later.log"))
+	expect(1, `msg="no files match yet"`, files[2], `nothing named \"no-such-dir\"`)
+	if lockedCheck {
+		expect(1, "level=WARN", `msg="no files match"`, files[3], "cannot list "+locked+": permission denied")
+		found := false
+		for _, e := range a.Events(100) {
+			found = found || (e.Type == "error" && strings.Contains(e.Message, "permission denied"))
+		}
+		if !found {
+			t.Error("no error event for the directory the agent cannot list")
+		}
 	}
 }

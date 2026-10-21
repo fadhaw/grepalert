@@ -49,6 +49,7 @@ type Agent struct {
 	active    *rules.Compiled // rules plus the overlay; what actually runs
 	tailers   map[string]*tailerHandle
 	resume    map[string]Position // saved positions not yet handed to a tailer
+	noMatch   map[string]string   // file pattern -> why it matches nothing, as last logged
 	stopped   bool
 	sched     *scheduler   // polls all tailers on a fixed worker pool
 	kube      *kubeWatcher // follows the pods of rules with a kubernetes source
@@ -78,6 +79,7 @@ func New(cfg Config, log *slog.Logger) *Agent {
 		started: time.Now(),
 		events:  newRing(cfg.EventBuffer),
 		tailers: map[string]*tailerHandle{},
+		noMatch: map[string]string{},
 		rules:   &rules.Compiled{Hash: rules.Hash(nil), Webhooks: map[string]*rules.CompiledWebhook{}},
 		hist:    map[string]*offsetHist{},
 		dryRuns: make(chan struct{}, 1),
@@ -409,11 +411,20 @@ func (a *Agent) reconcile(discovered bool) {
 		return
 	}
 	byFile := map[string][]*rules.CompiledRule{}
+	patterns := map[string]bool{}
 	for _, r := range a.active.Rules {
 		for _, pat := range r.Files {
-			for _, p := range expandPath(pat) {
+			patterns[pat] = true
+			m := expandPath(pat)
+			a.noteMatches(pat, len(m))
+			for _, p := range m {
 				byFile[p] = append(byFile[p], r)
 			}
+		}
+	}
+	for pat := range a.noMatch {
+		if !patterns[pat] {
+			delete(a.noMatch, pat)
 		}
 	}
 	defer func() {
@@ -431,6 +442,7 @@ func (a *Agent) reconcile(discovered bool) {
 		if _, ok := byFile[p]; !ok {
 			a.sched.remove(h.t)
 			delete(a.tailers, p)
+			a.log.Info("stopped following file", "file", p)
 		}
 	}
 	fromStart := a.cfg.StartFrom == "beginning"
@@ -449,7 +461,110 @@ func (a *Agent) reconcile(discovered bool) {
 			a.eng.process, a.tailError, a.log.With("file", p))
 		a.tailers[p] = &tailerHandle{t: t}
 		a.sched.add(t)
+
+		start := "end"
+		switch {
+		case resume != nil:
+			start = "saved position"
+		case fromStart || discovered:
+			start = "beginning"
+		}
+		if _, err := os.Stat(p); errors.Is(err, fs.ErrNotExist) {
+			start = "beginning, once created" // what a tailer does with a file that appears later
+		}
+		names := make([]string, 0, len(byFile[p]))
+		for _, r := range byFile[p] {
+			names = append(names, r.Name)
+		}
+		a.log.Info("following file", "file", p, "rules", strings.Join(names, ","), "from", start)
 	}
+}
+
+// noteMatches logs, once per change, that a file pattern matches nothing and
+// why (for example a directory the agent may not list), and that it matches
+// again later. A problem other than "nothing there yet" is also an event.
+// Callers must hold a.mu.
+func (a *Agent) noteMatches(pat string, n int) {
+	if !strings.ContainsAny(pat, "*?[") {
+		return // a literal path: its tailer reports it while it waits
+	}
+	if n > 0 {
+		if _, ok := a.noMatch[pat]; ok {
+			delete(a.noMatch, pat)
+			a.log.Info("file pattern matches again", "pattern", pat, "files", n)
+		}
+		return
+	}
+	why, failed := globProblem(pat)
+	if prev, ok := a.noMatch[pat]; ok && prev == why {
+		return
+	}
+	a.noMatch[pat] = why
+	if failed {
+		a.log.Warn("no files match", "pattern", pat, "reason", why)
+		a.events.add(Event{Time: time.Now(), Type: "error", File: pat, Message: "no files match: " + why})
+	} else {
+		a.log.Info("no files match yet", "pattern", pat, "reason", why)
+	}
+}
+
+// globProblem explains why pat matches no files, walking it one path element
+// at a time like filepath.Glob does, but keeping the errors Glob ignores.
+// failed is true when a directory could not be read (rather than simply
+// having nothing that matches).
+func globProblem(pat string) (why string, failed bool) {
+	pat = filepath.Clean(pat)
+	vol := filepath.VolumeName(pat)
+	parts := strings.Split(pat[len(vol):], string(filepath.Separator))
+	base := vol
+	if len(parts) > 0 && parts[0] == "" { // absolute path
+		base += string(filepath.Separator)
+		parts = parts[1:]
+	}
+	if base == "" {
+		base = "."
+	}
+	dirs := []string{base}
+	for _, part := range parts {
+		var next []string
+		for _, d := range dirs {
+			if !strings.ContainsAny(part, "*?[") {
+				p := filepath.Join(d, part)
+				if _, err := os.Stat(p); err == nil {
+					next = append(next, p)
+				} else if !errors.Is(err, fs.ErrNotExist) && len(dirs) == 1 {
+					return fmt.Sprintf("cannot read %s: %v", p, unwrapPath(err)), true
+				}
+				continue
+			}
+			entries, err := os.ReadDir(d)
+			if err != nil {
+				return fmt.Sprintf("cannot list %s: %v", d, unwrapPath(err)), true
+			}
+			for _, e := range entries {
+				if ok, _ := filepath.Match(part, e.Name()); ok {
+					next = append(next, filepath.Join(d, e.Name()))
+				}
+			}
+		}
+		if len(next) == 0 {
+			where := dirs[0]
+			if len(dirs) > 1 {
+				where = fmt.Sprintf("%s and %d more", dirs[0], len(dirs)-1)
+			}
+			return fmt.Sprintf("nothing named %q in %s", part, where), false
+		}
+		dirs = next
+	}
+	return "matches appeared while checking", false
+}
+
+func unwrapPath(err error) error {
+	var pe *fs.PathError
+	if errors.As(err, &pe) {
+		return pe.Err
+	}
+	return err
 }
 
 // takeKubeResume hands the saved positions of pod log streams to the

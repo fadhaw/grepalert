@@ -108,6 +108,24 @@ Every way of changing rules validates them first. An invalid version is rejected
 - **Recovery:** when the dashboard is back, agents reconnect by themselves (backoff up to 30 s) and are brought up to date.
 - **Lost dashboard data:** if the dashboard's data is lost, agents notice they are unknown and enroll again with their token.
 
+## Which files an agent follows
+
+When it starts, and whenever its rules change, the agent logs each file it follows, the rules that read it, and where it starts reading:
+
+```
+level=INFO msg="following file" file=/var/log/app/app.log rules=app-errors from=end
+level=INFO msg="following file" file=/var/log/app/batch.log rules=batch from="beginning, once created"
+level=INFO msg="file does not exist yet, waiting for it" file=/var/log/app/batch.log
+level=WARN msg="no files match" pattern=/data/*/logs/*.log reason="cannot list /data/shop: permission denied"
+```
+
+- **`from`** is `end` on a first start (`start_from`), `saved position` after a restart, and `beginning` for files that appear later.
+- **A file that doesn't exist yet** is waited for, and read from its first line once it's created.
+- **A pattern that matches nothing** is reported with the reason. That is `INFO` when there is simply nothing there yet, and a `WARN` plus an event in the dashboard when a directory can't be read, usually a permission problem. Each message is logged once, not on every rescan, and `file pattern matches again` follows once files are found.
+- **Files the rules no longer use** are logged as `stopped following file`.
+
+The same list is in the agent's status, `GET /api/v1/status` (`files`), and on the agent's page in the dashboard.
+
 ## Log rotation
 
 The agent polls each file (every 500 ms by default, `poll_interval`), which works the same on Linux, macOS and Windows:

@@ -70,6 +70,7 @@ type tailer struct {
 	fi       os.FileInfo
 	old      *oldFile  // the file before the last rotation, read until its grace ends
 	gone     time.Time // when the path was first found missing while a file was open
+	waiting  bool      // "does not exist yet" was logged; cleared once it opens
 	grace    time.Duration
 	now      func() time.Time
 	opened   atomic.Bool
@@ -269,6 +270,10 @@ func (t *tailer) open() bool {
 			// Not created yet: whatever gets written once it exists is new,
 			// so read it from the start.
 			t.fromStart = true
+			if !t.waiting {
+				t.waiting = true
+				t.log.Info("file does not exist yet, waiting for it")
+			}
 		} else {
 			t.fail(err)
 		}
@@ -282,6 +287,10 @@ func (t *tailer) open() bool {
 	}
 	t.f, t.fi = f, fi
 	t.id = fileID(f)
+	if t.waiting {
+		t.waiting = false
+		t.log.Info("file appeared")
+	}
 
 	var off int64
 	switch {

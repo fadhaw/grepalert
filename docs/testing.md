@@ -15,6 +15,7 @@ What grepalert is tested to do, especially in the edge cases where log tools ten
 `) are handled. | `TestTailerStartsAtEndAndReadsPartialLines` |
 | A file that doesn't exist yet is read from its first line once it appears. | `TestTailerFileCreatedLater` |
 | A `*.log` rule follows files created later, and ignores files that don't match. | `TestGlobPicksUpNewFiles` |
+| On start the agent logs each file it follows and from where, waits visibly for files that don't exist yet, and explains a pattern that matches nothing, such as a directory it may not list (checked as a non-root user on Linux). | `TestAgentLogsTheFilesItFollows` |
 | A huge line (100 KB) is cut at `max_line_bytes`, and the buffer doesn't stay large. | `TestTailerLongLineIsTruncated` |
 | **Rename rotation:** the old file is read to its end, including a line written to it after the rename, then the new file from its start. | `TestTailerRotation` |
 | **Rename rotation, program still writing to the old file** (nginx until `USR1`): those lines are read for 30 seconds after the switch. | `TestTailerReadsOldFileAfterRotation` |
@@ -82,6 +83,7 @@ Bad kubeconfig files give a clear error (`TestKubeconfigErrors`).
 | Silences, including one that starts while a fleet window is open. | `TestFleetSilence`, `TestSilenceCoversOpenWindow` |
 | Agent-down and agent-up alerts; revoked agents never alert. | `TestAgentDownAlerts` |
 | **Dashboard down:** agents deliver alerts directly, still honouring the dashboard's silences. | `TestAlertsThroughDashboardWithFallback` |
+| A stopped agent first finishes what its dashboard connection is doing, such as saving a file, before it exits. | `TestRunWaitsForDashboardConnection` |
 | **Staged rollout:** canary first, then 50%, then everyone; a rule that fires a lot halts it and rolls everyone back; rules the agents refuse halt at the canary; rollback is immediate. | `TestStagedRolloutVersionsAndRollback` |
 | Dry run of draft rules, and local rules on top of a group's. | `TestDryRunAndLocalRules`, `TestDryRunWindowAndSuppression` |
 | An agent's own rules are saved when a group first replaces them, and can be restored after it leaves. | `TestOwnRulesSavedOnFirstGroupPush`, `TestRestoreOwnRulesAfterLeavingGroup` |
