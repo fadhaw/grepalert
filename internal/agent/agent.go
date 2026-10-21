@@ -131,7 +131,7 @@ func (a *Agent) Run(ctx context.Context) error {
 		return err
 	}
 	if a.conn != nil {
-		go a.conn.run(ctx)
+		a.conn.start(ctx)
 	}
 	go a.kube.run(ctx)
 
@@ -161,6 +161,7 @@ func (a *Agent) Run(ctx context.Context) error {
 			a.kube.stop()  // pod log streams end with the context
 			if a.conn != nil {
 				a.conn.flushAlerts() // hand the last alerts to the dashboard (or send them)
+				a.conn.wait(5 * time.Second)
 			}
 			stopNotif()
 			a.notif.wait()

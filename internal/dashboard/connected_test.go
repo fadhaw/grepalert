@@ -154,6 +154,10 @@ func TestConnectedAgentLifecycle(t *testing.T) {
 		r, ok := store2.Agent("edge-01")
 		return ok && r.ID != "" && r.ID != firstID
 	})
+	waitFor(t, "agent connected again", 10*time.Second, func() bool {
+		st := ra.a.Status()
+		return st.Dashboard != nil && st.Dashboard.Connected
+	})
 }
 
 func TestEnrollmentTokens(t *testing.T) {

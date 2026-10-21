@@ -159,3 +159,70 @@ func TestBrokenRulesFileReportedOnce(t *testing.T) {
 		t.Fatalf("fixed file: err %v, pattern %q", err, a.Rules().Rules[0].Pattern)
 	}
 }
+
+// When Run returns, the dashboard connection has stopped too: nothing is
+// still writing files (identity, rules, silences) next to the rules file.
+// Before, Run returned at once, and a test's temp dir sometimes could not be
+// deleted because the agent was still saving a file into it.
+func TestRunWaitsForDashboardConnection(t *testing.T) {
+	dir := t.TempDir()
+	late := filepath.Join(dir, "written-by-request")
+	var sent sync.Once
+	dash := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/agent/v1/enroll":
+			json.NewEncoder(w).Encode(map[string]string{"agent_id": "a1", "secret": "s", "name": "edge-01"})
+		case "/agent/v1/poll":
+			first := false
+			sent.Do(func() { first = true })
+			if first { // one request for the agent, then hold the poll like the dashboard does
+				json.NewEncoder(w).Encode(map[string]any{"requests": []map[string]any{{
+					"id": "r1", "method": "GET", "path": "/api/v1/status",
+					"deadline": time.Now().Add(time.Minute)}}})
+				return
+			}
+			// Read the body first, as the dashboard does: only then does the
+			// server notice the agent hanging up and end the request.
+			io.Copy(io.Discard, r.Body)
+			w.WriteHeader(http.StatusOK)
+			w.(http.Flusher).Flush()
+			<-r.Context().Done()
+		default:
+			w.WriteHeader(http.StatusNoContent)
+		}
+	}))
+	defer dash.Close()
+
+	a := New(Config{
+		Name:      "edge-01",
+		RulesFile: filepath.Join(dir, "rules.yaml"),
+		StateFile: "off",
+		Dashboard: DashboardConfig{URL: dash.URL, EnrollmentToken: "token"},
+	}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	// A request that is still being handled, and then writes a file, when the
+	// agent is stopped.
+	handling := make(chan struct{})
+	a.conn.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(handling)
+		time.Sleep(300 * time.Millisecond)
+		os.WriteFile(late, []byte("done"), 0o644)
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	ran := make(chan error, 1)
+	go func() { ran <- a.Run(ctx) }()
+
+	select {
+	case <-handling:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the agent never got the request")
+	}
+	cancel()
+	select {
+	case <-ran:
+	case <-time.After(10 * time.Second):
+		t.Fatal("Run did not return")
+	}
+	if _, err := os.Stat(late); err != nil {
+		t.Fatal("Run returned while the dashboard connection was still handling a request")
+	}
+}

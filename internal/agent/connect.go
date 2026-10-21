@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"sync/atomic"
 
 	"time"
@@ -96,7 +97,10 @@ type connector struct {
 	id      atomic.Pointer[identity] // written by run, read by respond
 	resp    chan *tunnelResponse
 	sem     chan struct{}
-	state   atomic.Pointer[DashboardStatus]
+	// wg tracks run and the goroutines it starts that may still write files
+	// (identity, rules, silences), so the agent can wait for them on stop.
+	wg    sync.WaitGroup
+	state atomic.Pointer[DashboardStatus]
 
 	outbox     chan routedAlert // alerts waiting to be handed to the dashboard
 	started    time.Time
@@ -226,8 +230,36 @@ func (c *connector) setState(connected bool, err error) {
 	c.state.Store(&st)
 }
 
+// start runs the connector until ctx ends; wait waits for it to finish.
+func (c *connector) start(ctx context.Context) {
+	c.wg.Add(1)
+	go func() {
+		defer c.wg.Done()
+		c.run(ctx)
+	}()
+}
+
+// wait waits, at most d, for the connector's goroutines to finish after its
+// context ended, so no file is still being written when the agent returns.
+func (c *connector) wait(d time.Duration) {
+	done := make(chan struct{})
+	go func() {
+		c.wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(d):
+		c.a.log.Warn("dashboard connection did not stop in time")
+	}
+}
+
 func (c *connector) run(ctx context.Context) {
-	go c.respond(ctx)
+	c.wg.Add(1)
+	go func() {
+		defer c.wg.Done()
+		c.respond(ctx)
+	}()
 	go c.alertLoop(ctx)
 	c.id.Store(c.loadIdentity())
 	backoff := time.Second
@@ -268,9 +300,14 @@ func (c *connector) run(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			}
+			c.wg.Add(1)
 			go func(r *tunnelRequest) {
+				defer c.wg.Done()
 				defer func() { <-c.sem }()
-				c.resp <- c.handle(r)
+				select {
+				case c.resp <- c.handle(r):
+				case <-ctx.Done(): // respond has stopped: nobody reads the answer
+				}
 			}(r)
 		}
 	}
