@@ -113,9 +113,31 @@ Every way of changing rules validates them first. An invalid version is rejected
 The agent polls each file (every 500 ms by default, `poll_interval`), which works the same on Linux, macOS and Windows:
 
 - **rename + create** (logrotate's default): the agent finishes reading the old file, then reads the new one from its start.
-- **copytruncate:** the agent sees the file shrink and starts again from offset 0.
+  - It keeps reading the old file for **30 seconds** after switching. Some programs keep writing to it until they reopen their log: nginx until it gets `USR1`, or programs with buffered writes. Those last lines are alerted on too.
+  - A line the program had not finished when the file was rotated stays with the old file; it is never joined to the first line of the new one.
+- **copytruncate:** the agent notices the file was emptied and starts again from offset 0. This works even when the program writes more than the file held before the agent's next check: the agent compares the start of the file with what it read, not only the size.
+- **Deleted files:** the agent keeps reading a file whose path is gone for 30 seconds, then closes it, so its disk space is freed. If the file comes back, it is read from the start.
 - **Files that don't exist yet:** the agent waits for them, then reads them from the start.
 - **First start:** files are read from the end (`start_from: end`), so old history doesn't set off a burst of alerts.
+
+The agent keeps each file it follows open, read-only, between checks. That never blocks the program writing it or the rotation:
+- **Linux and macOS:** renaming, deleting and truncating work as usual.
+- **Windows:** files are opened with delete and write sharing, so they can be renamed, deleted and written while the agent reads them.
+
+**Prefer rename + create over copytruncate** when your program can reopen its log (most can, on a signal or by themselves). With `copytruncate`, logrotate first copies the file and then empties it. A line written in the moment between the two is in neither file, and no tool can read it afterwards; logrotate's manual warns about this. The agent reads new lines within `poll_interval`, so it usually catches such a line before it is erased, but not always.
+
+```
+/var/log/app/*.log {
+    daily
+    rotate 7
+    compress
+    delaycompress          # keep app.log.1 uncompressed: an agent restarted after rotation catches up from it
+    create 0640 app app    # rename + create, instead of copytruncate
+    postrotate
+        systemctl kill -s USR1 app.service    # tell the program to reopen its log
+    endscript
+}
+```
 
 ## Restarts don't miss lines
 

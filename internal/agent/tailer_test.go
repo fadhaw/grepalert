@@ -230,3 +230,126 @@ func TestPositionKeptWhileFileMissing(t *testing.T) {
 		t.Fatalf("position = %+v, want saved position kept", got)
 	}
 }
+
+// tailerClock lets a test move a tailer's time forward.
+func tailerClock(tl *tailer) *time.Time {
+	now := time.Date(2026, 10, 21, 10, 0, 0, 0, time.UTC)
+	tl.now = func() time.Time { return now }
+	return &now
+}
+
+// copytruncate, then a burst that makes the file larger than before, all
+// between two steps: the size never looks smaller, but the head changed.
+func TestTailerTruncatedAndRefilledBetweenSteps(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "app.log")
+	appendFile(t, p, "")
+	tl, c := newTestTailer(t, p, false, 1024)
+	tl.step()
+	appendFile(t, p, strings.Repeat("INFO request served in 12 ms ok\n", 3)) // 96 bytes
+	tl.step()
+	c.lines = nil
+
+	if err := os.Truncate(p, 0); err != nil {
+		t.Fatal(err)
+	}
+	appendFile(t, p, "ERROR payment failed order=1 (gateway)\n"+
+		"ERROR payment failed order=2 (gateway)\n"+
+		"ERROR payment failed order=3 (gateway)\n") // 117 bytes
+	tl.step()
+	expectLines(t, c,
+		"ERROR payment failed order=1 (gateway)",
+		"ERROR payment failed order=2 (gateway)",
+		"ERROR payment failed order=3 (gateway)")
+}
+
+// nginx-style rotation: the file is renamed and recreated, but the program
+// keeps writing to the renamed file until it reopens its log.
+func TestTailerReadsOldFileAfterRotation(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "access.log")
+	appendFile(t, p, "")
+	tl, c := newTestTailer(t, p, false, 1024)
+	now := tailerClock(tl)
+	tl.step()
+
+	appendFile(t, p, "before\n")
+	if err := os.Rename(p, p+".1"); err != nil {
+		t.Fatal(err)
+	}
+	appendFile(t, p, "new 1\n")
+	tl.step()
+	expectLines(t, c, "before", "new 1")
+
+	// Still written to the old file after the agent switched to the new one,
+	// including a line in two parts, while the new file gets lines too.
+	appendFile(t, p+".1", "GET /api/checkout 502\nhalf")
+	tl.step()
+	expectLines(t, c, "GET /api/checkout 502")
+	appendFile(t, p+".1", " a line\n")
+	appendFile(t, p, "new 2\n")
+	tl.step()
+	expectLines(t, c, "half a line", "new 2")
+
+	// At the end of the grace period the old file is read a last time and closed.
+	*now = now.Add(rotateGrace)
+	appendFile(t, p+".1", "last\n")
+	tl.step()
+	expectLines(t, c, "last")
+	if tl.old != nil {
+		t.Fatal("old file still open after the grace period")
+	}
+	appendFile(t, p+".1", "too late\n")
+	tl.step()
+	expectLines(t, c)
+}
+
+// The unfinished last line of the old file must not be glued to the first
+// line of the new one; it is emitted on its own when the old file is done.
+func TestTailerRotationKeepsPartialLineApart(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "app.log")
+	appendFile(t, p, "")
+	tl, c := newTestTailer(t, p, false, 1024)
+	now := tailerClock(tl)
+	tl.step()
+
+	appendFile(t, p, "complete\nunfinished")
+	if err := os.Rename(p, p+".1"); err != nil {
+		t.Fatal(err)
+	}
+	appendFile(t, p, "first of new\n")
+	tl.step()
+	expectLines(t, c, "complete", "first of new")
+
+	*now = now.Add(rotateGrace)
+	tl.step()
+	expectLines(t, c, "unfinished")
+}
+
+// A deleted file that is not recreated is let go after the grace period, so
+// its disk space is freed, and picked up again from the start if it returns.
+func TestTailerLetsGoOfDeletedFile(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "app.log")
+	appendFile(t, p, "")
+	tl, c := newTestTailer(t, p, false, 1024)
+	now := tailerClock(tl)
+	tl.step()
+	appendFile(t, p, "last words\n")
+	tl.step()
+	expectLines(t, c, "last words")
+
+	if err := os.Remove(p); err != nil {
+		t.Fatal(err)
+	}
+	tl.step()
+	if tl.f == nil {
+		t.Fatal("closed before the grace period ended")
+	}
+	*now = now.Add(rotateGrace)
+	tl.step()
+	if tl.f != nil {
+		t.Fatal("deleted file still open after the grace period")
+	}
+
+	appendFile(t, p, "back\n")
+	tl.step()
+	expectLines(t, c, "back")
+}

@@ -39,6 +39,12 @@ type Position struct {
 // fpSize is how much of a file's head is fingerprinted.
 const fpSize = 1024
 
+// rotateGrace is how long a file is still read after it was rotated away.
+// Some programs keep writing to the old file until they reopen their log
+// (nginx until it gets USR1, buffered writers until their next flush). After
+// that the handle is closed, so a deleted file's disk space is freed.
+const rotateGrace = 30 * time.Second
+
 // tailer follows a single file by polling. Polling (instead of inotify) keeps
 // it portable and makes rotation/truncation handling explicit and predictable.
 //
@@ -62,6 +68,10 @@ type tailer struct {
 
 	f        *os.File
 	fi       os.FileInfo
+	old      *oldFile  // the file before the last rotation, read until its grace ends
+	gone     time.Time // when the path was first found missing while a file was open
+	grace    time.Duration
+	now      func() time.Time
 	opened   atomic.Bool
 	offset   atomic.Int64
 	lines    atomic.Uint64
@@ -80,6 +90,15 @@ type tailer struct {
 	pos       atomic.Pointer[Position]
 }
 
+// oldFile is a file the tailer rotated away from. It keeps its own partial
+// line, so the end of the old file never runs into the start of the new one.
+type oldFile struct {
+	f        *os.File
+	until    time.Time
+	lineBuf  []byte
+	overflow bool
+}
+
 func newTailer(path string, poll time.Duration, maxLine int, fromStart bool, resume *Position,
 	onLine LineFunc, onError func(string, error), log *slog.Logger) *tailer {
 	return &tailer{
@@ -93,6 +112,8 @@ func newTailer(path string, poll time.Duration, maxLine int, fromStart bool, res
 		onError:   onError,
 		log:       log,
 		lineBuf:   make([]byte, 0, 1024),
+		grace:     rotateGrace,
+		now:       time.Now,
 	}
 }
 
@@ -116,8 +137,19 @@ func (t *tailer) step() bool {
 }
 
 func (t *tailer) advance() {
+	if t.old != nil {
+		t.readOld(!t.now().Before(t.old.until))
+	}
 	if t.f == nil {
 		if !t.open() {
+			return
+		}
+	}
+	if t.refilled() {
+		// Emptied and written again past our offset since the last step
+		// (copytruncate followed by a burst): the size alone cannot show it.
+		t.log.Info("file was truncated and written again, reading it from the start")
+		if !t.rewind() {
 			return
 		}
 	}
@@ -131,33 +163,91 @@ func (t *tailer) advance() {
 	cur, err := os.Stat(t.path)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
-		// Rotated away and not yet recreated; keep the old handle until the
-		// new file shows up so trailing writes are not lost.
+		// Rotated away and not yet recreated: keep reading the old handle so
+		// trailing writes are not lost, but only for the grace period, so a
+		// deleted file does not keep its disk space.
+		if t.gone.IsZero() {
+			t.gone = t.now()
+		} else if t.now().Sub(t.gone) >= t.grace {
+			t.log.Info("file is gone, closing it until it comes back")
+			if len(t.lineBuf) > 0 {
+				t.emit() // the file is complete; flush its last line
+			}
+			t.close()
+			t.fromStart = true
+		}
 		return
 	case err != nil:
 		t.fail(err)
 		return
 	}
+	t.gone = time.Time{}
 	if !os.SameFile(cur, t.fi) {
 		for t.drain(); t.more; t.drain() {
 			// read the old file to its end before switching: nothing written
 			// to it just before rotation may be lost
 		}
-		t.close()
+		t.retire()
 		t.fromStart = true // a freshly rotated file must be read from the top
 		if t.open() {
 			t.drain()
 		}
 		return
 	}
-	if cur.Size() < t.offset.Load() {
-		if _, err := t.f.Seek(0, io.SeekStart); err != nil {
-			t.fail(err)
-			t.close()
-			return
-		}
-		t.setStart(0)
+	if cur.Size() < t.offset.Load() && t.rewind() {
 		t.drain()
+	}
+}
+
+// refilled reports whether the head of the open file no longer matches what
+// was read from it, i.e. it was truncated and written again.
+func (t *tailer) refilled() bool {
+	if t.fpLen == 0 {
+		return false
+	}
+	fp, ok := fingerprint(t.f, t.fpLen)
+	return ok && fp != t.fp // !ok: now shorter than the fingerprint; the size check handles it
+}
+
+// rewind restarts reading the current file from its beginning.
+func (t *tailer) rewind() bool {
+	if _, err := t.f.Seek(0, io.SeekStart); err != nil {
+		t.fail(err)
+		t.close()
+		return false
+	}
+	t.setStart(0)
+	return true
+}
+
+// retire keeps the current file open as the old file for the grace period,
+// together with its unfinished last line, and lets the tailer open the new one.
+func (t *tailer) retire() {
+	if t.old != nil {
+		t.readOld(true) // rotated twice within the grace period
+	}
+	t.old = &oldFile{f: t.f, until: t.now().Add(t.grace),
+		lineBuf: append([]byte(nil), t.lineBuf...), overflow: t.overflow}
+	t.f, t.fi = nil, nil
+	t.opened.Store(false)
+	t.resetLine()
+}
+
+// readOld emits the lines written to the old file since the last step. With
+// final, it also flushes the old file's last line and closes it.
+func (t *tailer) readOld(final bool) {
+	o := t.old
+	lineBuf, overflow, more := t.lineBuf, t.overflow, t.more
+	t.lineBuf, t.overflow = o.lineBuf, o.overflow
+	t.readAll(o.f)
+	if final && len(t.lineBuf) > 0 {
+		t.emit()
+	}
+	o.lineBuf, o.overflow = t.lineBuf, t.overflow
+	t.lineBuf, t.overflow, t.more = lineBuf, overflow, more
+	if final {
+		o.f.Close()
+		t.old = nil
 	}
 }
 
@@ -411,6 +501,10 @@ func (t *tailer) resetLine() {
 }
 
 func (t *tailer) close() {
+	if t.old != nil {
+		t.old.f.Close()
+		t.old = nil
+	}
 	if t.f != nil {
 		t.f.Close()
 		t.f, t.fi = nil, nil
