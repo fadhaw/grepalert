@@ -68,6 +68,7 @@ nav:
   - Reference:
       - Agent API: api.md
       - Memory and performance: performance.md
+      - Tested behaviour: testing.md
   - Project:
       - Release notes: releases/index.md
       - Development: development.md

@@ -208,13 +208,14 @@ Also on the documentation site, with search: [opreklabs.github.io/grepalert](htt
 
 11. [Agent API](docs/api.md)
 12. [Memory and performance](docs/performance.md)
-13. [Demo walkthrough](docs/demo.md)
+13. [Tested behaviour](docs/testing.md): every edge case that is tested, such as log rotation, restarts, Kubernetes streams and the dashboard going down.
+14. [Demo walkthrough](docs/demo.md)
 
 **Project**
 
-14. [Development](docs/development.md)
-15. [Releasing](docs/releasing.md)
-16. [Release notes](docs/releases/)
+15. [Development](docs/development.md)
+16. [Releasing](docs/releasing.md)
+17. [Release notes](docs/releases/)
 
 ## License
 

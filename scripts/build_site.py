@@ -7,6 +7,8 @@ read well on GitHub. For the site this script:
     cards in place of its GitHub-only header,
   - turns links to files outside docs/ (examples/, LICENSE, ...) into links
     to those files on GitHub,
+  - adds the blank line Python-Markdown needs before a list that directly
+    follows a paragraph line (GitHub doesn't need it),
   - drops the "← Documentation · Previous · Next" line at the top of each
     page (the site has its own navigation),
   - publishes the release notes of versions that have a git tag.
@@ -122,6 +124,45 @@ def home(readme):
     return HOME_TOP.format(lead=lead) + "\n".join(lines[end + 1:])
 
 
+LIST_ITEM = re.compile(r"^(?:[-*+]|\d+\.) ")
+
+
+def separate_lists(text):
+    """Makes GitHub-style lists read the same in Python-Markdown:
+      - content nested in a list item is indented to 4 spaces per level
+        (GitHub also accepts 2 or 3, Python-Markdown doesn't), and
+      - a list right after a paragraph line ("**Revoking:**" then "- …")
+        gets the blank line Python-Markdown needs before it.
+    Code blocks are moved with their list item but not changed inside."""
+    out = []
+    stack = []         # per open list item: (source content column, site content column)
+    fence, shift = None, 0
+    for line in text.split("\n"):
+        body = line.lstrip()
+        indent = len(line) - len(body)
+        if fence:
+            if body.startswith(fence):
+                fence = None
+            out.append(" " * max(0, indent + shift) + body if line.strip() else line)
+            continue
+        if not body:
+            out.append(line)
+            continue
+        while stack and indent < stack[-1][0]:
+            stack.pop()
+        new = stack[-1][1] + indent - stack[-1][0] if stack else indent
+        if body.startswith(("```", "~~~")):
+            fence, shift = body[:3], new - indent
+        elif LIST_ITEM.match(body):
+            prev = out[-1].lstrip() if out else ""
+            if prev and not LIST_ITEM.match(prev) and not prev.startswith(("|", "#", ">", "<")):
+                out.append("")
+            new = stack[-1][1] if stack else indent
+            stack.append((indent + LIST_ITEM.match(body).end(), new + 4))
+        out.append(" " * new + body)
+    return "\n".join(out)
+
+
 def drop_nav_line(text):
     lines = text.split("\n")
     if lines and lines[0].startswith("[← Documentation"):
@@ -156,13 +197,13 @@ def main():
                     ignore=shutil.ignore_patterns("*.py", "__pycache__"))
 
     with open(os.path.join(ROOT, "README.md"), encoding="utf-8") as f:
-        write("index.md", rewrite(home(f.read()), ".", ""))
+        write("index.md", rewrite(separate_lists(home(f.read())), ".", ""))
 
     for name in sorted(os.listdir(os.path.join(ROOT, "docs"))):
         if not name.endswith(".md"):
             continue
         with open(os.path.join(ROOT, "docs", name), encoding="utf-8") as f:
-            write(name, rewrite(drop_nav_line(f.read()), "docs", ""))
+            write(name, rewrite(separate_lists(drop_nav_line(f.read())), "docs", ""))
 
     # Release notes: only versions that were tagged (the next one is a draft).
     released = tags()
@@ -175,7 +216,7 @@ def main():
         tag = n[:-3]
         with open(os.path.join(ROOT, "docs", "releases", n), encoding="utf-8") as f:
             body = f.read()
-        write(f"releases/{n}", f"# grepalert {tag}\n\n" + rewrite(body, "docs/releases", "releases"))
+        write(f"releases/{n}", f"# grepalert {tag}\n\n" + rewrite(separate_lists(body), "docs/releases", "releases"))
         first = re.sub(r"\s+", " ", body.strip().split("\n\n")[0])
         index += [f"## [{tag}]({n})", "", first, ""]
     if not notes:

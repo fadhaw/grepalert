@@ -120,9 +120,24 @@ The agent polls each file (every 500 ms by default, `poll_interval`), which work
 - **Files that don't exist yet:** the agent waits for them, then reads them from the start.
 - **First start:** files are read from the end (`start_from: end`), so old history doesn't set off a burst of alerts.
 
-The agent keeps each file it follows open, read-only, between checks. That never blocks the program writing it or the rotation:
-- **Linux and macOS:** renaming, deleting and truncating work as usual.
-- **Windows:** files are opened with delete and write sharing, so they can be renamed, deleted and written while the agent reads them.
+### Files are held open, read-only
+
+The agent keeps each file it follows open between checks, the way `tail -F` does. There are two reasons:
+- **Speed:** each check reads only the bytes added since the last one, from where it stopped.
+- **No lost lines:** an open file stays readable after it is renamed or deleted, because it refers to the file itself, not to its name. That is how the agent finishes a rotated file.
+
+It opens files **read-only and never locks them**, so the program writing the log and your log rotation work as usual:
+
+| Someone else… | Linux and macOS | Windows |
+|---|---|---|
+| writes the file | works | works (opened with write sharing) |
+| renames it (rotation) | works; the agent reads the old file 30 s more | works (opened with delete sharing) |
+| truncates it (copytruncate) | works | works |
+| deletes it | works; the disk space is freed when the agent closes it, within 30 s | works; on some systems the name stays reserved until the agent closes it, within 30 s |
+
+**How many files are open:** one per file a rule follows, plus each rotated file for 30 seconds. Files no rule uses any more are closed when the rules change, and files that don't exist hold nothing. With a glob over hundreds of files, check the process's open-file limit (`ulimit -n`, `LimitNOFILE=` in systemd); the agent raises its soft limit to the hard limit when it starts.
+
+**Disk space:** a deleted log file keeps using disk space while any program has it open; `lsof | grep deleted` lists such files. The agent lets go of a deleted file 30 seconds after its name disappears, so it never keeps disk space for long.
 
 **Prefer rename + create over copytruncate** when your program can reopen its log (most can, on a signal or by themselves). With `copytruncate`, logrotate first copies the file and then empties it. A line written in the moment between the two is in neither file, and no tool can read it afterwards; logrotate's manual warns about this. The agent reads new lines within `poll_interval`, so it usually catches such a line before it is erased, but not always.
 

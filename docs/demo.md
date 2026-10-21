@@ -1,4 +1,4 @@
-[← Documentation](../README.md#documentation) · Previous: [Memory and performance](performance.md) · Next: [Development →](development.md)
+[← Documentation](../README.md#documentation) · Previous: [Tested behaviour](testing.md) · Next: [Development →](development.md)
 
 # Try it with Docker Compose
 
